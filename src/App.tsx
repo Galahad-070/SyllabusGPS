@@ -239,6 +239,7 @@ function App() {
                   data={activeRoadmap.data}
                   onNodeClick={handleNodeClick}
                   completedNodes={completedNodes}
+                  onToggleComplete={handleToggleComplete}
                   onPrerequisiteCheck={handlePrerequisiteCheck}
                 />
               )}

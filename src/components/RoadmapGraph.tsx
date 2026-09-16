@@ -5,11 +5,12 @@ interface RoadmapGraphProps {
   data: RoadmapData;
   onNodeClick: (node: RoadmapNode) => void;
   completedNodes: Set<string>;
+  onToggleComplete: (nodeId: string, completed: boolean) => void;
   onPrerequisiteCheck: (node: RoadmapNode, knowsPrerequisite: boolean) => void;
 }
 
 const NODE_WIDTH = 220;
-const NODE_HEIGHT = 100;
+const NODE_HEIGHT = 110;
 const LAYER_SPACING = 280;
 const NODE_SPACING = 140;
 
@@ -53,6 +54,7 @@ export function RoadmapGraph({
   data,
   onNodeClick,
   completedNodes,
+  onToggleComplete,
   onPrerequisiteCheck,
 }: RoadmapGraphProps) {
   const { nodes, edges } = data;
@@ -168,16 +170,16 @@ export function RoadmapGraph({
     <div className="relative overflow-auto p-8" style={{ minHeight: '600px' }}>
       <svg 
         className="absolute top-0 left-0 w-full h-full pointer-events-none"
-        viewBox="0 0 1200 800"
+        viewBox="0 0 1400 900"
         preserveAspectRatio="none"
-        style={{ width: '100%', height: '100%', minWidth: '1200px' }}
+        style={{ width: '100%', height: '100%', minWidth: '1400px' }}
       >
         <defs>
-          <marker id="arrowhead-gray" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-            <polygon points="0 0, 10 3.5, 0 7" fill="#6b7280" />
+          <marker id="arrowhead-gray" markerWidth="12" markerHeight="10" refX="11" refY="5" orient="auto" markerUnits="strokeWidth">
+            <path d="M0,0 L0,10 L12,5 Z" fill="#6b7280" />
           </marker>
-          <marker id="arrowhead-green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-            <polygon points="0 0, 10 3.5, 0 7" fill="#22c55e" />
+          <marker id="arrowhead-green" markerWidth="12" markerHeight="10" refX="11" refY="5" orient="auto" markerUnits="strokeWidth">
+            <path d="M0,0 L0,10 L12,5 Z" fill="#22c55e" />
           </marker>
         </defs>
         
@@ -202,7 +204,7 @@ export function RoadmapGraph({
         })}
       </svg>
 
-      <div className="relative" style={{ minWidth: '1200px', minHeight: '600px' }}>
+      <div className="relative" style={{ minWidth: '1400px', minHeight: '700px' }}>
         {nodes.map(node => {
           const pos = nodePositions.get(node.id);
           if (!pos) return null;
@@ -214,6 +216,10 @@ export function RoadmapGraph({
           const isAdvancedNode = isAdvanced(node);
           const isCurrent = isUnlocked && !isCompleted && 
             edges.some(e => e.target === node.id && completedNodes.has(e.source));
+          
+          const prereqNames = incomingEdges
+            .map(e => nodes.find(n => n.id === e.source)?.label)
+            .filter(Boolean);
           
           return (
             <div
@@ -237,15 +243,27 @@ export function RoadmapGraph({
                 style={{ width: NODE_WIDTH, height: NODE_HEIGHT }}
               >
                 {isCompleted && (
-                  <div className="absolute -top-2 -right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
-                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                    </svg>
+                  <div className="absolute top-2 right-2 flex gap-1">
+                    <button
+                      onClick={e => { e.stopPropagation(); onToggleComplete(node.id, false); }}
+                      className="p-1.5 bg-white/90 hover:bg-white rounded-lg text-green-600 hover:text-green-800 shadow-sm transition-colors"
+                      aria-label="Unmark complete"
+                      title="Unmark complete"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                    <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
                   </div>
                 )}
                 
                 {!isCompleted && isUnlocked && isAdvancedNode && (
-                  <div className="absolute -top-2 -right-2 w-6 h-6 bg-amber-500 rounded-full flex items-center justify-center" title="Advanced topic">
+                  <div className="absolute top-2 right-2 w-6 h-6 bg-amber-500 rounded-full flex items-center justify-center" title="Advanced topic">
                     <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                     </svg>
@@ -273,7 +291,29 @@ export function RoadmapGraph({
                     `}>
                       {node.description}
                     </p>
-                    <div className="mt-3 flex items-center gap-3">
+                    
+                    {prereqNames.length > 0 && (
+                      <div className="mt-2 pt-2 border-t border-gray-100">
+                        <p className="text-xs text-gray-500 mb-1">Prerequisites:</p>
+                        <div className="flex flex-wrap gap-1">
+                          {prereqNames.map((name, i) => (
+                            <span 
+                              key={i} 
+                              className={`
+                                text-[10px] px-1.5 py-0.5 rounded
+                                ${completedNodes.has(edges.find(e => 
+                                  nodes.find(n => n.label === name)?.id === e.source
+                                )?.target || '') ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}
+                              `}
+                            >
+                              {name}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="mt-2 flex items-center gap-3">
                       <span className={`
                         text-xs font-medium px-2 py-1 rounded-full
                         ${isCompleted ? 'bg-green-100 text-green-700' : isUnlocked ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}
