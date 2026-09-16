@@ -179,13 +179,19 @@ export function RoadmapGraph({
     );
   }
 
+  const allPositions = Array.from(nodePositions.values());
+  const maxX = Math.max(...allPositions.map(p => p.x + NODE_WIDTH), 1400);
+  const maxY = Math.max(...allPositions.map(p => p.y + NODE_HEIGHT), 900);
+  const viewBoxWidth = maxX + 100;
+  const viewBoxHeight = maxY + 100;
+
   return (
     <div className="relative overflow-auto p-8" style={{ minHeight: '600px' }}>
       <svg 
         className="absolute top-0 left-0 w-full h-full pointer-events-none"
-        viewBox="0 0 1400 900"
-        preserveAspectRatio="none"
-        style={{ width: '100%', height: '100%', minWidth: '1400px' }}
+        viewBox={`0 0 ${viewBoxWidth} ${viewBoxHeight}`}
+        preserveAspectRatio="xMidYMid meet"
+        style={{ width: '100%', height: '100%', minWidth: `${viewBoxWidth}px`, minHeight: `${viewBoxHeight}px` }}
       >
         <defs>
           <marker id="arrowhead-gray" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse">
@@ -217,7 +223,7 @@ export function RoadmapGraph({
         })}
       </svg>
 
-      <div className="relative" style={{ minWidth: '1400px', minHeight: '700px' }}>
+      <div className="relative" style={{ minWidth: `${viewBoxWidth}px`, minHeight: `${viewBoxHeight}px` }}>
         {nodes.map(node => {
           const pos = nodePositions.get(node.id);
           if (!pos) return null;
