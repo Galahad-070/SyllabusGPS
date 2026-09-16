@@ -75,7 +75,7 @@ export function TutoringModal({ node, courseTitle, roadmapId, isOpen, onClose }:
     // Title
     doc.setFontSize(24);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(22, 101, 52); // green-700
+    doc.setTextColor(22, 101, 52);
     const titleLines = doc.splitTextToSize(node.label, contentWidth);
     doc.text(titleLines, margin, margin + 10);
     
@@ -97,38 +97,104 @@ export function TutoringModal({ node, courseTitle, roadmapId, isOpen, onClose }:
     const lineY = margin + 10 + titleLines.length * 10 + 5 + 10 + descLines.length * 6 + 5;
     doc.line(margin, lineY, pageWidth - margin, lineY);
     
-    // Parse and render markdown content
+    // Parse markdown with inline formatting support
     let yPos = lineY + 8;
     const lines = notes.split('\n');
+    let inCodeBlock = false;
+    let codeBlockContent: string[] = [];
     
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(40, 40, 40);
+    // Helper to render text with inline markdown (bold, italic, code)
+    const renderInlineMarkdown = (text: string, x: number, y: number, fontSize: number, fontStyle: 'normal' | 'bold' | 'italic' = 'normal', color: [number, number, number] = [40, 40, 40]) => {
+      doc.setFontSize(fontSize);
+      doc.setFont('helvetica', fontStyle);
+      doc.setTextColor(...color);
+      
+      // Parse inline markdown: **bold**, *italic*, `code`
+      const parts = text.split(/(\*\*.+?\*\*|\*.+?\*|`.+?`)/g);
+      let currentX = x;
+      
+      for (const part of parts) {
+        if (part.startsWith('**') && part.endsWith('**')) {
+          doc.setFont('helvetica', 'bold');
+          doc.text(part.slice(2, -2), currentX, y);
+          currentX += doc.getTextWidth(part.slice(2, -2));
+        } else if (part.startsWith('*') && part.endsWith('*') && !part.startsWith('**')) {
+          doc.setFont('helvetica', 'italic');
+          doc.text(part.slice(1, -1), currentX, y);
+          currentX += doc.getTextWidth(part.slice(1, -1));
+        } else if (part.startsWith('`') && part.endsWith('`')) {
+          doc.setFont('courier', 'normal');
+          doc.setFillColor(240, 240, 240);
+          const textW = doc.getTextWidth(part.slice(1, -1));
+          doc.roundedRect(currentX - 1, y - 3, textW + 2, 5, 1, 1, 'F');
+          doc.text(part.slice(1, -1), currentX, y);
+          currentX += textW + 2;
+        } else if (part) {
+          doc.setFont('helvetica', fontStyle);
+          doc.text(part, currentX, y);
+          currentX += doc.getTextWidth(part);
+        }
+      }
+    };
     
-    for (const line of lines) {
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      
       if (yPos > pageHeight - 25) {
         doc.addPage();
         yPos = margin;
       }
       
-      // Handle headers
+      // Code block handling
+      if (line.startsWith('```')) {
+        if (!inCodeBlock) {
+          inCodeBlock = true;
+          codeBlockContent = [];
+        } else {
+          inCodeBlock = false;
+          // Render code block
+          doc.setFillColor(245, 245, 245);
+          const blockHeight = codeBlockContent.length * 5 + 8;
+          if (yPos + blockHeight > pageHeight - 25) {
+            doc.addPage();
+            yPos = margin;
+          }
+          doc.roundedRect(margin, yPos - 2, contentWidth, blockHeight, 2, 2, 'F');
+          doc.setFont('courier', 'normal');
+          doc.setFontSize(9);
+          doc.setTextColor(60, 60, 60);
+          codeBlockContent.forEach((cl, idx) => {
+            doc.text(cl, margin + 4, yPos + 6 + idx * 5);
+          });
+          yPos += blockHeight + 4;
+          codeBlockContent = [];
+        }
+        continue;
+      }
+      
+      if (inCodeBlock) {
+        codeBlockContent.push(line);
+        continue;
+      }
+      
+      // Headers
       if (line.startsWith('# ')) {
         doc.setFontSize(18);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(22, 101, 52);
-        doc.text(line.substring(2), margin, yPos);
+        renderInlineMarkdown(line.substring(2), margin, yPos, 18, 'bold', [22, 101, 52]);
         yPos += 10;
       } else if (line.startsWith('## ')) {
         doc.setFontSize(15);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(40, 40, 40);
-        doc.text(line.substring(3), margin, yPos);
+        renderInlineMarkdown(line.substring(3), margin, yPos, 15, 'bold', [40, 40, 40]);
         yPos += 8;
       } else if (line.startsWith('### ')) {
         doc.setFontSize(13);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(60, 60, 60);
-        doc.text(line.substring(4), margin, yPos);
+        renderInlineMarkdown(line.substring(4), margin, yPos, 13, 'bold', [60, 60, 60]);
         yPos += 7;
       } else if (line.startsWith('> ')) {
         // Blockquote
@@ -136,41 +202,32 @@ export function TutoringModal({ node, courseTitle, roadmapId, isOpen, onClose }:
         doc.setFont('helvetica', 'italic');
         doc.setTextColor(100, 100, 100);
         doc.setFillColor(240, 240, 240);
-        const quoteLines = doc.splitTextToSize(line.substring(2), contentWidth - 10);
-        doc.roundedRect(margin, yPos - 4, contentWidth, quoteLines.length * 5 + 4, 2, 2, 'F');
-        doc.text(quoteLines, margin + 5, yPos);
-        yPos += quoteLines.length * 5 + 6;
+        renderInlineMarkdown(line.substring(2), margin + 5, yPos, 10, 'italic', [100, 100, 100]);
+        yPos += 7;
       } else if (line.startsWith('- ') || line.startsWith('* ')) {
         // Bullet points
         doc.setFontSize(11);
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(40, 40, 40);
-        const bulletLines = doc.splitTextToSize(line.substring(2), contentWidth - 10);
         doc.text('•', margin, yPos);
-        doc.text(bulletLines, margin + 5, yPos);
-        yPos += bulletLines.length * 6 + 2;
+        renderInlineMarkdown(line.substring(2), margin + 5, yPos, 11, 'normal', [40, 40, 40]);
+        yPos += 7;
       } else if (line.match(/^\d+\.\s/)) {
         // Numbered list
         doc.setFontSize(11);
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(40, 40, 40);
-        const numLines = doc.splitTextToSize(line, contentWidth - 10);
-        doc.text(numLines, margin + 5, yPos);
-        yPos += numLines.length * 6 + 2;
-      } else if (line.startsWith('```')) {
-        // Code block - skip markers
-        continue;
+        renderInlineMarkdown(line, margin + 5, yPos, 11, 'normal', [40, 40, 40]);
+        yPos += 7;
       } else if (line.trim() === '') {
-        // Empty line
         yPos += 4;
       } else {
-        // Regular text
+        // Regular text with inline markdown
         doc.setFontSize(11);
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(40, 40, 40);
-        const textLines = doc.splitTextToSize(line, contentWidth);
-        doc.text(textLines, margin, yPos);
-        yPos += textLines.length * 6 + 2;
+        renderInlineMarkdown(line, margin, yPos, 11, 'normal', [40, 40, 40]);
+        yPos += 7;
       }
     }
     

@@ -53,6 +53,7 @@ function App() {
 
   const handleSelectRoadmap = useCallback((id: string) => {
     setActiveId(id);
+    setTutoringNode(null);
     const roadmap = roadmaps.find(r => r.id === id);
     if (roadmap) {
       setCompletedNodes(new Set(roadmap.completedNodes));
@@ -64,6 +65,7 @@ function App() {
   const handleNewRoadmap = useCallback(() => {
     setShowUpload(true);
     setActiveId(null);
+    setTutoringNode(null);
     setCompletedNodes(new Set());
   }, []);
 
