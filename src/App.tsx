@@ -83,10 +83,14 @@ function App() {
     setShowDetail(true);
   }, []);
 
-  const handleMarkComplete = useCallback((nodeId: string) => {
+  const handleToggleComplete = useCallback((nodeId: string, completed: boolean) => {
     setCompletedNodes(prev => {
       const next = new Set(prev);
-      next.add(nodeId);
+      if (completed) {
+        next.add(nodeId);
+      } else {
+        next.delete(nodeId);
+      }
       if (activeId) {
         updateRoadmap(activeId, { completedNodes: Array.from(next) });
         setRoadmaps(prevMaps => prevMaps.map(r => 
@@ -95,8 +99,6 @@ function App() {
       }
       return next;
     });
-    setShowDetail(false);
-    setCurrentNode(null);
   }, [activeId]);
 
   const handlePrerequisiteCheck = useCallback((_node: RoadmapNode, knowsPrerequisite: boolean) => {
@@ -117,10 +119,14 @@ function App() {
       <FilesSidebar
         roadmaps={roadmaps}
         activeId={activeId}
+        activeRoadmapNodes={activeRoadmap?.data.nodes || []}
+        activeRoadmapEdges={activeRoadmap?.data.edges || []}
+        completedNodes={completedNodes}
         onSelect={handleSelectRoadmap}
         onNew={handleNewRoadmap}
         onRename={handleRenameRoadmap}
         onDelete={handleDeleteRoadmap}
+        onToggleComplete={handleToggleComplete}
       />
 
       <div className="flex-1 flex flex-col min-w-0">
@@ -205,16 +211,15 @@ function App() {
 
                     <div className="flex gap-3">
                       <button
-                        onClick={() => handleMarkComplete(currentNode.id)}
-                        disabled={completedNodes.has(currentNode.id)}
+                        onClick={() => handleToggleComplete(currentNode.id, !completedNodes.has(currentNode.id))}
                         className={`
                           flex-1 py-3 px-6 rounded-lg font-medium transition-colors
                           ${completedNodes.has(currentNode.id) 
-                            ? 'bg-green-100 text-green-700 cursor-default' 
+                            ? 'bg-green-100 text-green-700' 
                             : 'bg-green-600 text-white hover:bg-green-700'}
                         `}
                       >
-                        {completedNodes.has(currentNode.id) ? '✓ Completed' : 'Mark Complete'}
+                        {completedNodes.has(currentNode.id) ? 'Unmark' : 'Mark Complete'}
                       </button>
                       <button
                         onClick={handleBackToGraph}

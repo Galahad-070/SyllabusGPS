@@ -173,8 +173,11 @@ export function RoadmapGraph({
         style={{ width: '100%', height: '100%', minWidth: '1200px' }}
       >
         <defs>
-          <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+          <marker id="arrowhead-gray" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
             <polygon points="0 0, 10 3.5, 0 7" fill="#6b7280" />
+          </marker>
+          <marker id="arrowhead-green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#22c55e" />
           </marker>
         </defs>
         
@@ -191,7 +194,7 @@ export function RoadmapGraph({
               stroke={isActive ? '#22c55e' : '#6b7280'}
               strokeWidth={isActive ? 3 : 2}
               fill="none"
-              markerEnd="url(#arrowhead)"
+              markerEnd={isActive ? 'url(#arrowhead-green)' : 'url(#arrowhead-gray)'}
               className="transition-colors duration-300"
               style={{ filter: isActive ? 'drop-shadow(0 0 4px #22c55e)' : 'none' }}
             />
