@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import type { UploadState, RoadmapData } from '../types/roadmap';
-import { uploadPdf, generateRoadmap } from '../api/groq';
+import { extractPdfText, generateRoadmap } from '../api/groq';
 
 const CLOUD_UPLOAD_ICON = (
   <svg className="w-12 h-12 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -65,8 +65,8 @@ export function UploadZone({ onUploadComplete }: UploadZoneProps) {
     setState(prev => ({ ...prev, file, isLoading: true, error: null }));
 
     try {
-      const uploadResult = await uploadPdf(file);
-      const roadmap = await generateRoadmap(uploadResult.text);
+      const text = await extractPdfText(file);
+      const roadmap = await generateRoadmap(text);
       setState(prev => ({ ...prev, isLoading: false, roadmap }));
       onUploadComplete(roadmap);
     } catch (err) {

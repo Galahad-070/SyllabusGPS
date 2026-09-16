@@ -1,11 +1,11 @@
 import type { RoadmapData } from '../types/roadmap';
+import * as pdfjsLib from 'pdfjs-dist';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const MODEL = 'openai/gpt-oss-20b';
-
-interface UploadResponse {
-  text: string;
-}
+const MAX_INPUT_CHARS = 12000;
 
 function getApiKey(): string {
   const key = import.meta.env.VITE_GROQ_API_KEY;
@@ -39,28 +39,31 @@ async function callGroqApi(messages: Array<{ role: string; content: string }>, r
   return response.json();
 }
 
-export async function uploadPdf(file: File): Promise<UploadResponse> {
+function truncateText(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text;
+  return text.slice(0, maxChars) + '\n\n[Content truncated due to length limit]';
+}
+
+export async function extractPdfText(file: File): Promise<string> {
   const arrayBuffer = await file.arrayBuffer();
-  const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-
-  const result = await callGroqApi([
-    {
-      role: 'system',
-      content: 'You are a PDF text extractor. Extract all text content from the provided PDF base64 data. Return ONLY the extracted text, no additional commentary.'
-    },
-    {
-      role: 'user',
-      content: `Extract text from this PDF (base64): ${base64}`
-    }
-  ]);
-
-  const extractedText = result.choices[0]?.message?.content || '';
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   
-  if (!extractedText.trim()) {
+  let fullText = '';
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const pageText = content.items
+      .filter((item: any) => 'str' in item)
+      .map((item: any) => item.str)
+      .join(' ');
+    fullText += pageText + '\n\n';
+  }
+  
+  if (!fullText.trim()) {
     throw new Error('Could not extract text from PDF. The file may be empty or image-based.');
   }
-
-  return { text: extractedText };
+  
+  return truncateText(fullText, MAX_INPUT_CHARS);
 }
 
 export async function generateRoadmap(syllabusText: string): Promise<RoadmapData> {
@@ -77,9 +80,11 @@ Rules:
 - Hours should be realistic estimates for mastery
 `.trim();
 
+  const truncatedText = truncateText(syllabusText, MAX_INPUT_CHARS);
+
   const result = await callGroqApi([
     { role: 'system', content: systemPrompt },
-    { role: 'user', content: syllabusText }
+    { role: 'user', content: truncatedText }
   ], { type: 'json_object' });
 
   try {
