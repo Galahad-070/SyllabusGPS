@@ -35,3 +35,18 @@ export interface StoredRoadmap {
   data: RoadmapData;
   completedNodes: string[];
 }
+
+export interface TutoringMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
+}
+
+export interface TutoringSession {
+  nodeId: string;
+  roadmapId: string;
+  notes: string;
+  messages: TutoringMessage[];
+  createdAt: number;
+  updatedAt: number;
+}

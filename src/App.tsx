@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { UploadZone } from './components/UploadZone';
 import { RoadmapGraph } from './components/RoadmapGraph';
 import { FilesSidebar } from './components/FilesSidebar';
+import { TutoringModal } from './components/TutoringModal';
 import { getStoredRoadmaps, saveRoadmap, updateRoadmap, deleteRoadmap } from './lib/storage';
 import type { RoadmapData, RoadmapNode, StoredRoadmap } from './types/roadmap';
 
@@ -13,6 +14,7 @@ function App() {
   const [currentNode, setCurrentNode] = useState<RoadmapNode | null>(null);
   const [currentNodePrereqs, setCurrentNodePrereqs] = useState<Array<{id: string, label: string, completed: boolean}>>([]);
   const [showDetail, setShowDetail] = useState(false);
+  const [tutoringNode, setTutoringNode] = useState<RoadmapNode | null>(null);
 
   useEffect(() => {
     const stored = getStoredRoadmaps();
@@ -121,6 +123,14 @@ function App() {
       handleNodeClick(currentNode, prerequisites);
     }
   }, [currentNode, handleNodeClick, activeRoadmap, completedNodes]);
+
+  const handleTutoring = useCallback((node: RoadmapNode) => {
+    setTutoringNode(node);
+  }, []);
+
+  const handleCloseTutoring = useCallback(() => {
+    setTutoringNode(null);
+  }, []);
 
   const handleBackToGraph = useCallback(() => {
     setShowDetail(false);
@@ -294,10 +304,21 @@ function App() {
                   completedNodes={completedNodes}
                   onToggleComplete={handleToggleComplete}
                   onPrerequisiteCheck={handlePrerequisiteCheck}
+                  onTutoring={handleTutoring}
                 />
               )}
             </main>
           </>
+        )}
+        
+        {tutoringNode && activeId && (
+          <TutoringModal
+            node={tutoringNode}
+            courseTitle={activeRoadmap?.data.course_title || ''}
+            roadmapId={activeId}
+            isOpen={!!tutoringNode}
+            onClose={handleCloseTutoring}
+          />
         )}
       </div>
     </div>
