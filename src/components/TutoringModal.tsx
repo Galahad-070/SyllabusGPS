@@ -71,71 +71,48 @@ export function TutoringModal({ node, courseTitle, roadmapId, isOpen, onClose }:
     const pageHeight = doc.internal.pageSize.getHeight();
     const margin = 20;
     const contentWidth = pageWidth - 2 * margin;
+    const lineHeight = 6;
     
-    // Title
-    doc.setFontSize(24);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(22, 101, 52);
-    const titleLines = doc.splitTextToSize(node.label, contentWidth);
-    doc.text(titleLines, margin, margin + 10);
-    
-    // Course title
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(100, 100, 100);
-    doc.text(courseTitle, margin, margin + 10 + titleLines.length * 10 + 5);
-    
-    // Module description
-    doc.setFontSize(11);
-    doc.setTextColor(80, 80, 80);
-    const descLines = doc.splitTextToSize(node.description, contentWidth);
-    doc.text(descLines, margin, margin + 10 + titleLines.length * 10 + 5 + 10);
-    
-    // Horizontal line
-    doc.setDrawColor(200, 200, 200);
-    doc.setLineWidth(0.5);
-    const lineY = margin + 10 + titleLines.length * 10 + 5 + 10 + descLines.length * 6 + 5;
-    doc.line(margin, lineY, pageWidth - margin, lineY);
-    
-    // Parse markdown with inline formatting support
-    let yPos = lineY + 8;
-    const lines = notes.split('\n');
-    let inCodeBlock = false;
-    let codeBlockContent: string[] = [];
-    
-    // Helper to render text with inline markdown (bold, italic, code)
-    const renderInlineMarkdown = (text: string, x: number, y: number, fontSize: number, fontStyle: 'normal' | 'bold' | 'italic' = 'normal', color: [number, number, number] = [40, 40, 40]) => {
+    // Helper to add text with automatic wrapping
+    const addWrappedText = (text: string, x: number, y: number, fontSize: number, fontStyle: 'normal' | 'bold' | 'italic' = 'normal', color: [number, number, number] = [40, 40, 40], maxWidth = contentWidth) => {
       doc.setFontSize(fontSize);
       doc.setFont('helvetica', fontStyle);
       doc.setTextColor(...color);
-      
-      // Parse inline markdown: **bold**, *italic*, `code`
-      const parts = text.split(/(\*\*.+?\*\*|\*.+?\*|`.+?`)/g);
-      let currentX = x;
-      
-      for (const part of parts) {
-        if (part.startsWith('**') && part.endsWith('**')) {
-          doc.setFont('helvetica', 'bold');
-          doc.text(part.slice(2, -2), currentX, y);
-          currentX += doc.getTextWidth(part.slice(2, -2));
-        } else if (part.startsWith('*') && part.endsWith('*') && !part.startsWith('**')) {
-          doc.setFont('helvetica', 'italic');
-          doc.text(part.slice(1, -1), currentX, y);
-          currentX += doc.getTextWidth(part.slice(1, -1));
-        } else if (part.startsWith('`') && part.endsWith('`')) {
-          doc.setFont('courier', 'normal');
-          doc.setFillColor(240, 240, 240);
-          const textW = doc.getTextWidth(part.slice(1, -1));
-          doc.roundedRect(currentX - 1, y - 3, textW + 2, 5, 1, 1, 'F');
-          doc.text(part.slice(1, -1), currentX, y);
-          currentX += textW + 2;
-        } else if (part) {
-          doc.setFont('helvetica', fontStyle);
-          doc.text(part, currentX, y);
-          currentX += doc.getTextWidth(part);
-        }
-      }
+      const lines = doc.splitTextToSize(text, maxWidth);
+      doc.text(lines, x, y);
+      return y + lines.length * lineHeight;
     };
+    
+    // Helper to strip markdown syntax for PDF
+    const stripMarkdown = (text: string) => {
+      return text
+        .replace(/\*\*(.+?)\*\*/g, '$1')  // bold
+        .replace(/\*(.+?)\*/g, '$1')      // italic
+        .replace(/`(.+?)`/g, '$1');       // inline code
+    };
+    
+    let yPos = margin + 10;
+    
+    // Title
+    yPos = addWrappedText(node.label, margin, yPos, 24, 'bold', [22, 101, 52]);
+    
+    // Course title
+    yPos = addWrappedText(courseTitle, margin, yPos + 5, 14, 'normal', [100, 100, 100]);
+    
+    // Module description
+    yPos = addWrappedText(node.description, margin, yPos + 5, 11, 'normal', [80, 80, 80]);
+    
+    // Horizontal line
+    yPos += 5;
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineWidth(0.5);
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+    yPos += 8;
+    
+    // Parse markdown content
+    const lines = notes.split('\n');
+    let inCodeBlock = false;
+    let codeBlockContent: string[] = [];
     
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
@@ -177,57 +154,43 @@ export function TutoringModal({ node, courseTitle, roadmapId, isOpen, onClose }:
         continue;
       }
       
+      const cleanLine = stripMarkdown(line);
+      
       // Headers
       if (line.startsWith('# ')) {
-        doc.setFontSize(18);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(22, 101, 52);
-        renderInlineMarkdown(line.substring(2), margin, yPos, 18, 'bold', [22, 101, 52]);
-        yPos += 10;
+        yPos = addWrappedText(cleanLine.substring(2), margin, yPos, 18, 'bold', [22, 101, 52]);
       } else if (line.startsWith('## ')) {
-        doc.setFontSize(15);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(40, 40, 40);
-        renderInlineMarkdown(line.substring(3), margin, yPos, 15, 'bold', [40, 40, 40]);
-        yPos += 8;
+        yPos = addWrappedText(cleanLine.substring(3), margin, yPos, 15, 'bold', [40, 40, 40]);
       } else if (line.startsWith('### ')) {
-        doc.setFontSize(13);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(60, 60, 60);
-        renderInlineMarkdown(line.substring(4), margin, yPos, 13, 'bold', [60, 60, 60]);
-        yPos += 7;
+        yPos = addWrappedText(cleanLine.substring(4), margin, yPos, 13, 'bold', [60, 60, 60]);
       } else if (line.startsWith('> ')) {
         // Blockquote
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'italic');
-        doc.setTextColor(100, 100, 100);
         doc.setFillColor(240, 240, 240);
-        renderInlineMarkdown(line.substring(2), margin + 5, yPos, 10, 'italic', [100, 100, 100]);
-        yPos += 7;
+        doc.setDrawColor(22, 101, 52);
+        doc.setLineWidth(2);
+        const quoteLines = doc.splitTextToSize(cleanLine.substring(2), contentWidth - 10);
+        const quoteHeight = quoteLines.length * lineHeight + 6;
+        if (yPos + quoteHeight > pageHeight - 25) {
+          doc.addPage();
+          yPos = margin;
+        }
+        doc.roundedRect(margin, yPos - 2, contentWidth, quoteHeight, 1, 1, 'FD');
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(10);
+        doc.setTextColor(100, 100, 100);
+        doc.text(quoteLines, margin + 5, yPos + 3);
+        yPos += quoteHeight + 4;
       } else if (line.startsWith('- ') || line.startsWith('* ')) {
         // Bullet points
-        doc.setFontSize(11);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(40, 40, 40);
-        doc.text('•', margin, yPos);
-        renderInlineMarkdown(line.substring(2), margin + 5, yPos, 11, 'normal', [40, 40, 40]);
-        yPos += 7;
+        yPos = addWrappedText('• ' + cleanLine.substring(2), margin + 5, yPos, 11, 'normal', [40, 40, 40], contentWidth - 5);
       } else if (line.match(/^\d+\.\s/)) {
         // Numbered list
-        doc.setFontSize(11);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(40, 40, 40);
-        renderInlineMarkdown(line, margin + 5, yPos, 11, 'normal', [40, 40, 40]);
-        yPos += 7;
+        yPos = addWrappedText(cleanLine, margin + 5, yPos, 11, 'normal', [40, 40, 40], contentWidth - 5);
       } else if (line.trim() === '') {
         yPos += 4;
       } else {
-        // Regular text with inline markdown
-        doc.setFontSize(11);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(40, 40, 40);
-        renderInlineMarkdown(line, margin, yPos, 11, 'normal', [40, 40, 40]);
-        yPos += 7;
+        // Regular text
+        yPos = addWrappedText(cleanLine, margin, yPos, 11, 'normal', [40, 40, 40]);
       }
     }
     
