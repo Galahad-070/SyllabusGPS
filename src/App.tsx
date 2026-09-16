@@ -11,6 +11,7 @@ function App() {
   const [showUpload, setShowUpload] = useState(false);
   const [completedNodes, setCompletedNodes] = useState<Set<string>>(new Set());
   const [currentNode, setCurrentNode] = useState<RoadmapNode | null>(null);
+  const [currentNodePrereqs, setCurrentNodePrereqs] = useState<Array<{id: string, label: string, completed: boolean}>>([]);
   const [showDetail, setShowDetail] = useState(false);
 
   useEffect(() => {
@@ -78,8 +79,9 @@ function App() {
     }
   }, [activeId, roadmaps]);
 
-  const handleNodeClick = useCallback((node: RoadmapNode) => {
+  const handleNodeClick = useCallback((node: RoadmapNode, prerequisites: Array<{id: string, label: string, completed: boolean}>) => {
     setCurrentNode(node);
+    setCurrentNodePrereqs(prerequisites);
     setShowDetail(true);
   }, []);
 
@@ -103,9 +105,22 @@ function App() {
 
   const handlePrerequisiteCheck = useCallback((_node: RoadmapNode, knowsPrerequisite: boolean) => {
     if (knowsPrerequisite && currentNode) {
-      handleNodeClick(currentNode);
+      // Find prerequisites for current node
+      const edges = activeRoadmap?.data.edges || [];
+      const nodes = activeRoadmap?.data.nodes || [];
+      const prerequisites = edges
+        .filter(e => e.target === currentNode.id)
+        .map(e => {
+          const prereqNode = nodes.find(n => n.id === e.source);
+          return {
+            id: e.source,
+            label: prereqNode?.label || '',
+            completed: completedNodes.has(e.source),
+          };
+        });
+      handleNodeClick(currentNode, prerequisites);
     }
-  }, [currentNode, handleNodeClick]);
+  }, [currentNode, handleNodeClick, activeRoadmap, completedNodes]);
 
   const handleBackToGraph = useCallback(() => {
     setShowDetail(false);
@@ -204,6 +219,44 @@ function App() {
                             <span key={i} className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
                               {topic}
                             </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {currentNodePrereqs.length > 0 && (
+                      <div className="mb-6">
+                        <h3 className="font-semibold text-gray-800 mb-3">Prerequisites</h3>
+                        <div className="space-y-2">
+                          {currentNodePrereqs.map((prereq) => (
+                            <div 
+                              key={prereq.id} 
+                              className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg"
+                            >
+                              <div className={`
+                                w-6 h-6 rounded flex items-center justify-center
+                                ${prereq.completed ? 'bg-green-100' : 'bg-amber-100'}
+                              `}>
+                                {prereq.completed ? (
+                                  <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                ) : (
+                                  <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                  </svg>
+                                )}
+                              </div>
+                              <span className={`
+                                text-sm
+                                ${prereq.completed ? 'text-green-700' : 'text-amber-700'}
+                              `}>
+                                {prereq.label}
+                              </span>
+                              <span className="text-xs text-gray-400 ml-auto">
+                                {prereq.completed ? 'Completed' : 'Pending'}
+                              </span>
+                            </div>
                           ))}
                         </div>
                       </div>

@@ -3,7 +3,7 @@ import type { RoadmapData, RoadmapNode, RoadmapEdge } from '../types/roadmap';
 
 interface RoadmapGraphProps {
   data: RoadmapData;
-  onNodeClick: (node: RoadmapNode) => void;
+  onNodeClick: (node: RoadmapNode, prerequisites: Array<{id: string, label: string, completed: boolean}>) => void;
   completedNodes: Set<string>;
   onToggleComplete: (nodeId: string, completed: boolean) => void;
   onPrerequisiteCheck: (node: RoadmapNode, knowsPrerequisite: boolean) => void;
@@ -100,19 +100,28 @@ export function RoadmapGraph({
   const [showPrerequisiteCheck, setShowPrerequisiteCheck] = useState<RoadmapNode | null>(null);
 
   const handleNodeClick = (node: RoadmapNode) => {
-    if (completedNodes.has(node.id)) return;
+    const incomingEdges = edges.filter(e => e.target === node.id);
+    const prerequisites = incomingEdges.map(e => {
+      const prereqNode = nodes.find(n => n.id === e.source);
+      return {
+        id: e.source,
+        label: prereqNode?.label || '',
+        completed: completedNodes.has(e.source),
+      };
+    });
     
-    if (isAdvanced(node) && !completedNodes.has(node.id)) {
-      const incomingEdges = edges.filter(e => e.target === node.id);
-      const prerequisites = incomingEdges.map(e => e.source);
-      const missingPrereqs = prerequisites.filter(p => !completedNodes.has(p));
+    // For advanced nodes that aren't completed, check prerequisites
+    if (!completedNodes.has(node.id) && isAdvanced(node)) {
+      const missingPrereqs = prerequisites.filter(p => !p.completed);
       
       if (missingPrereqs.length > 0) {
         setShowPrerequisiteCheck(node);
         return;
       }
     }
-    onNodeClick(node);
+    
+    // Always allow opening detail (even for completed nodes)
+    onNodeClick(node, prerequisites);
   };
 
   if (showPrerequisiteCheck) {
@@ -217,10 +226,6 @@ export function RoadmapGraph({
           const isCurrent = isUnlocked && !isCompleted && 
             edges.some(e => e.target === node.id && completedNodes.has(e.source));
           
-          const prereqNames = incomingEdges
-            .map(e => nodes.find(n => n.id === e.source)?.label)
-            .filter(Boolean);
-          
           return (
             <div
               key={node.id}
@@ -291,27 +296,6 @@ export function RoadmapGraph({
                     `}>
                       {node.description}
                     </p>
-                    
-                    {prereqNames.length > 0 && (
-                      <div className="mt-2 pt-2 border-t border-gray-100">
-                        <p className="text-xs text-gray-500 mb-1">Prerequisites:</p>
-                        <div className="flex flex-wrap gap-1">
-                          {prereqNames.map((name, i) => (
-                            <span 
-                              key={i} 
-                              className={`
-                                text-[10px] px-1.5 py-0.5 rounded
-                                ${completedNodes.has(edges.find(e => 
-                                  nodes.find(n => n.label === name)?.id === e.source
-                                )?.target || '') ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}
-                              `}
-                            >
-                              {name}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                     
                     <div className="mt-2 flex items-center gap-3">
                       <span className={`
