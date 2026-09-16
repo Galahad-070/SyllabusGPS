@@ -35,7 +35,7 @@ function App() {
   const activeRoadmap = roadmaps.find(r => r.id === activeId);
 
   const handleUploadComplete = useCallback((data: RoadmapData, fileName: string) => {
-    const name = fileName.replace(/\.pdf$/i, '');
+    const name = data.course_title || fileName.replace(/\.pdf$/i, '');
     const newRoadmap = saveRoadmap({
       name,
       fileName,
