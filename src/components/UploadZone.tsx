@@ -9,7 +9,7 @@ const CLOUD_UPLOAD_ICON = (
 );
 
 interface UploadZoneProps {
-  onUploadComplete: (roadmap: RoadmapData) => void;
+  onUploadComplete: (roadmap: RoadmapData, fileName: string) => void;
 }
 
 export function UploadZone({ onUploadComplete }: UploadZoneProps) {
@@ -68,7 +68,7 @@ export function UploadZone({ onUploadComplete }: UploadZoneProps) {
       const text = await extractPdfText(file);
       const roadmap = await generateRoadmap(text);
       setState(prev => ({ ...prev, isLoading: false, roadmap }));
-      onUploadComplete(roadmap);
+      onUploadComplete(roadmap, file.name);
     } catch (err) {
       setState(prev => ({
         ...prev,
@@ -81,7 +81,7 @@ export function UploadZone({ onUploadComplete }: UploadZoneProps) {
   const isHovered = state.isDragging || state.isLoading;
 
   return (
-    <div className="min-h-screen bg-green-50 flex flex-col items-center justify-center p-4 sm:p-8">
+    <div className="min-h-[calc(100vh-64px)] bg-green-50 flex flex-col items-center justify-center p-4 sm:p-8">
       <header className="w-full max-w-2xl mb-8 sm:mb-12 text-center">
         <div className="inline-flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white shadow-md mb-4">
           <svg className="w-10 h-10 sm:w-12 sm:h-12 text-green-500" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -96,7 +96,7 @@ export function UploadZone({ onUploadComplete }: UploadZoneProps) {
         <div
           className={`
             relative rounded-2xl border-2 border-dashed p-8 sm:p-12 transition-all duration-200
-            ${isHovered ? 'border-green-400 bg-green-50' : 'border-green-300 bg-white hover:border-green-400 hover:bg-green-50'}
+            ${isHovered ? 'border-green-400 bg-white' : 'border-green-300 bg-white hover:border-green-400'}
             ${state.isLoading ? 'pointer-events-none opacity-75' : 'cursor-pointer'}
           `}
           onDragOver={handleDragOver}

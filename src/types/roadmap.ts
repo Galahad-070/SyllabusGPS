@@ -25,3 +25,13 @@ export interface UploadState {
   error: string | null;
   roadmap: RoadmapData | null;
 }
+
+export interface StoredRoadmap {
+  id: string;
+  name: string;
+  fileName: string;
+  createdAt: number;
+  updatedAt: number;
+  data: RoadmapData;
+  completedNodes: string[];
+}
