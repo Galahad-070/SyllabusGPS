@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { jsPDF } from 'jspdf';
 import type { RoadmapNode, TutoringMessage } from '../types/roadmap';
 import { generateTutoringNotes, askTutoringQuestion } from '../api/tutoring';
 import { getTutoringSession, saveTutoringSession, addTutoringMessage, updateTutoringNotes } from '../lib/storage';
@@ -41,6 +42,162 @@ export function TutoringModal({ node, courseTitle, roadmapId, isOpen, onClose }:
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  const handleCopyNotes = useCallback(() => {
+    if (!notes) return;
+    navigator.clipboard.writeText(notes).then(() => {
+      // Could add a toast notification here
+    }).catch(() => {
+      // Fallback for older browsers
+      const textarea = document.createElement('textarea');
+      textarea.value = notes;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    });
+  }, [notes]);
+
+  const handleExportPDF = useCallback(() => {
+    if (!notes) return;
+    
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4',
+    });
+    
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 20;
+    const contentWidth = pageWidth - 2 * margin;
+    
+    // Title
+    doc.setFontSize(24);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(22, 101, 52); // green-700
+    const titleLines = doc.splitTextToSize(node.label, contentWidth);
+    doc.text(titleLines, margin, margin + 10);
+    
+    // Course title
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 100, 100);
+    doc.text(courseTitle, margin, margin + 10 + titleLines.length * 10 + 5);
+    
+    // Module description
+    doc.setFontSize(11);
+    doc.setTextColor(80, 80, 80);
+    const descLines = doc.splitTextToSize(node.description, contentWidth);
+    doc.text(descLines, margin, margin + 10 + titleLines.length * 10 + 5 + 10);
+    
+    // Horizontal line
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineWidth(0.5);
+    const lineY = margin + 10 + titleLines.length * 10 + 5 + 10 + descLines.length * 6 + 5;
+    doc.line(margin, lineY, pageWidth - margin, lineY);
+    
+    // Parse and render markdown content
+    let yPos = lineY + 8;
+    const lines = notes.split('\n');
+    
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(40, 40, 40);
+    
+    for (const line of lines) {
+      if (yPos > pageHeight - 25) {
+        doc.addPage();
+        yPos = margin;
+      }
+      
+      // Handle headers
+      if (line.startsWith('# ')) {
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(22, 101, 52);
+        doc.text(line.substring(2), margin, yPos);
+        yPos += 10;
+      } else if (line.startsWith('## ')) {
+        doc.setFontSize(15);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(40, 40, 40);
+        doc.text(line.substring(3), margin, yPos);
+        yPos += 8;
+      } else if (line.startsWith('### ')) {
+        doc.setFontSize(13);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(60, 60, 60);
+        doc.text(line.substring(4), margin, yPos);
+        yPos += 7;
+      } else if (line.startsWith('> ')) {
+        // Blockquote
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'italic');
+        doc.setTextColor(100, 100, 100);
+        doc.setFillColor(240, 240, 240);
+        const quoteLines = doc.splitTextToSize(line.substring(2), contentWidth - 10);
+        doc.roundedRect(margin, yPos - 4, contentWidth, quoteLines.length * 5 + 4, 2, 2, 'F');
+        doc.text(quoteLines, margin + 5, yPos);
+        yPos += quoteLines.length * 5 + 6;
+      } else if (line.startsWith('- ') || line.startsWith('* ')) {
+        // Bullet points
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(40, 40, 40);
+        const bulletLines = doc.splitTextToSize(line.substring(2), contentWidth - 10);
+        doc.text('•', margin, yPos);
+        doc.text(bulletLines, margin + 5, yPos);
+        yPos += bulletLines.length * 6 + 2;
+      } else if (line.match(/^\d+\.\s/)) {
+        // Numbered list
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(40, 40, 40);
+        const numLines = doc.splitTextToSize(line, contentWidth - 10);
+        doc.text(numLines, margin + 5, yPos);
+        yPos += numLines.length * 6 + 2;
+      } else if (line.startsWith('```')) {
+        // Code block - skip markers
+        continue;
+      } else if (line.trim() === '') {
+        // Empty line
+        yPos += 4;
+      } else {
+        // Regular text
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(40, 40, 40);
+        const textLines = doc.splitTextToSize(line, contentWidth);
+        doc.text(textLines, margin, yPos);
+        yPos += textLines.length * 6 + 2;
+      }
+    }
+    
+    // Footer
+    const footerY = pageHeight - 15;
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineWidth(0.3);
+    doc.line(margin, footerY - 3, pageWidth - margin, footerY - 3);
+    
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(130, 130, 130);
+    doc.text('Made with SyllabusGPS', pageWidth / 2, footerY, { align: 'center' });
+    
+    // Page numbers
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text(`Page ${i} of ${pageCount}`, pageWidth / 2, pageHeight - 8, { align: 'center' });
+    }
+    
+    // Save
+    const fileName = `${node.label.replace(/[^a-z0-9]/gi, '_')}_notes.pdf`;
+    doc.save(fileName);
+  }, [notes, node.label, courseTitle]);
 
   const handleGenerateNotes = useCallback(async () => {
     if (notes) return;
@@ -172,14 +329,38 @@ export function TutoringModal({ node, courseTitle, roadmapId, isOpen, onClose }:
                   <h3 className="font-semibold text-gray-800">Study Notes</h3>
                   <p className="text-sm text-gray-500">AI-generated comprehensive notes for this module</p>
                 </div>
-                {notes && (
-                  <button
-                    onClick={handleSaveNotes}
-                    className="px-4 py-2 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                  >
-                    Save Notes
-                  </button>
-                )}
+                <div className="flex items-center gap-2">
+                  {notes && (
+                    <>
+                      <button
+                        onClick={handleCopyNotes}
+                        className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        aria-label="Copy notes"
+                        title="Copy notes to clipboard"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={handleExportPDF}
+                        className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                        aria-label="Export as PDF"
+                        title="Export notes as PDF"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={handleSaveNotes}
+                        className="px-4 py-2 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                      >
+                        Save Notes
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
 
               {!notes ? (
