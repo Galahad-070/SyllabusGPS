@@ -70,14 +70,15 @@ export async function generateRoadmap(syllabusText: string): Promise<RoadmapData
   const systemPrompt = `
 Analyze the syllabus and output ONLY a raw JSON object representing a study roadmap. 
 Format EXACTLY like this: 
-{"course_title": "...", "nodes": [{"id": "...", "label": "...", "description": "...", "estimated_hours": 2.5}], "edges": [{"source": "...", "target": "..."}]}
+{"course_title": "...", "nodes": [{"id": "...", "label": "...", "description": "...", "estimated_hours": 2.5, "difficulty": "beginner|intermediate|advanced", "topics": ["topic1", "topic2"]}], "edges": [{"source": "...", "target": "..."}]}
 
 Rules:
-- Each node must have unique id, label, description, and estimated_hours (number)
+- Each node must have unique id, label, description, estimated_hours (number), difficulty ("beginner", "intermediate", or "advanced"), and topics (array of strings)
 - Edges represent prerequisites/dependencies (source -> target)
 - Create logical learning sequence from fundamentals to advanced topics
 - Include 8-15 nodes for a typical semester course
 - Hours should be realistic estimates for mastery
+- Mark foundational topics as "beginner", core topics as "intermediate", and capstone/advanced topics as "advanced"
 `.trim();
 
   const truncatedText = truncateText(syllabusText, MAX_INPUT_CHARS);

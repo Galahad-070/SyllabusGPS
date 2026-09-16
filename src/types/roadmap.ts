@@ -3,6 +3,8 @@ export interface RoadmapNode {
   label: string;
   description: string;
   estimated_hours: number;
+  difficulty?: 'beginner' | 'intermediate' | 'advanced';
+  topics?: string[];
 }
 
 export interface RoadmapEdge {
