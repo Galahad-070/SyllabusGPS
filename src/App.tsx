@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { UploadZone } from './components/UploadZone';
 import { RoadmapGraph } from './components/RoadmapGraph';
 import { FilesSidebar } from './components/FilesSidebar';
@@ -15,6 +15,7 @@ function App() {
   const [currentNodePrereqs, setCurrentNodePrereqs] = useState<Array<{id: string, label: string, completed: boolean}>>([]);
   const [showDetail, setShowDetail] = useState(false);
   const [tutoringNode, setTutoringNode] = useState<RoadmapNode | null>(null);
+  const detailModalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const stored = getStoredRoadmaps();
@@ -137,6 +138,19 @@ function App() {
     setCurrentNode(null);
   }, []);
 
+  const handleDetailBackdropClick = useCallback((e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      handleBackToGraph();
+    }
+  }, [handleBackToGraph]);
+
+  const handleDetailTutoring = useCallback(() => {
+    if (currentNode) {
+      setTutoringNode(currentNode);
+      setShowDetail(false);
+    }
+  }, [currentNode]);
+
   const progress = activeRoadmap ? Math.round((completedNodes.size / activeRoadmap.data.nodes.length) * 100) : 0;
 
   return (
@@ -193,8 +207,17 @@ function App() {
             </header>
 
             {showDetail && currentNode && (
-              <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 overflow-auto" role="dialog" aria-modal="true">
-                <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-auto shadow-xl animate-fade-in">
+              <div 
+                ref={detailModalRef}
+                className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 overflow-auto" 
+                role="dialog" 
+                aria-modal="true"
+                onClick={handleDetailBackdropClick}
+              >
+                <div 
+                  className="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-auto shadow-xl animate-fade-in"
+                  onClick={e => e.stopPropagation()}
+                >
                   <div className="p-6 border-b border-gray-200 sticky top-0 bg-white">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1">
@@ -209,13 +232,25 @@ function App() {
                         </div>
                         <h2 className="text-2xl font-bold text-gray-800">{currentNode.label}</h2>
                       </div>
-                      <button
-                        onClick={handleBackToGraph}
-                        className="text-gray-400 hover:text-gray-600 text-2xl leading-none p-1"
-                        aria-label="Close"
-                      >
-                        ×
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={handleDetailTutoring}
+                          className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          aria-label="Open tutor"
+                          title="Open tutor for this module"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={handleBackToGraph}
+                          className="text-gray-400 hover:text-gray-600 text-2xl leading-none p-1"
+                          aria-label="Close"
+                        >
+                          ×
+                        </button>
+                      </div>
                     </div>
                   </div>
                   <div className="p-6">
