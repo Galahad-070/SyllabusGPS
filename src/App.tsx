@@ -226,35 +226,35 @@ function App() {
 
                     {currentNodePrereqs.length > 0 && (
                       <div className="mb-6">
-                        <h3 className="font-semibold text-gray-800 mb-3">Prerequisites</h3>
-                        <div className="space-y-2">
+                        <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                          Prerequisites
+                          <span className="text-xs text-gray-400 font-normal">
+                            ({currentNodePrereqs.filter(p => p.completed).length}/{currentNodePrereqs.length})
+                          </span>
+                        </h3>
+                        <div className="space-y-1.5">
                           {currentNodePrereqs.map((prereq) => (
                             <div 
                               key={prereq.id} 
-                              className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg"
+                              className="flex items-center gap-3 p-2.5 bg-gray-50 rounded-lg border"
                             >
                               <div className={`
-                                w-6 h-6 rounded flex items-center justify-center
-                                ${prereq.completed ? 'bg-green-100' : 'bg-amber-100'}
+                                flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center
+                                ${prereq.completed ? 'bg-green-500' : 'bg-amber-500'}
                               `}>
-                                {prereq.completed ? (
-                                  <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  {prereq.completed ? (
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                  </svg>
-                                ) : (
-                                  <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  ) : (
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                  </svg>
-                                )}
+                                  )}
+                                </svg>
                               </div>
                               <span className={`
-                                text-sm
+                                text-sm font-medium
                                 ${prereq.completed ? 'text-green-700' : 'text-amber-700'}
                               `}>
                                 {prereq.label}
-                              </span>
-                              <span className="text-xs text-gray-400 ml-auto">
-                                {prereq.completed ? 'Completed' : 'Pending'}
                               </span>
                             </div>
                           ))}

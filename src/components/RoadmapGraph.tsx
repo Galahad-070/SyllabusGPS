@@ -88,6 +88,18 @@ export function RoadmapGraph({
     return `M ${startX} ${startY} C ${midX} ${startY}, ${midX} ${endY}, ${endX} ${endY}`;
   };
 
+  const getPrerequisiteData = (node: RoadmapNode) => {
+    const incomingEdges = edges.filter(e => e.target === node.id);
+    return incomingEdges.map(e => {
+      const prereqNode = nodes.find(n => n.id === e.source);
+      return {
+        id: e.source,
+        label: prereqNode?.label || '',
+        completed: completedNodes.has(e.source),
+      };
+    });
+  };
+
   const isAdvanced = (node: RoadmapNode): boolean => {
     const incomingEdges = edges.filter(e => e.target === node.id);
     return incomingEdges.length >= 2 || 
@@ -100,15 +112,7 @@ export function RoadmapGraph({
   const [showPrerequisiteCheck, setShowPrerequisiteCheck] = useState<RoadmapNode | null>(null);
 
   const handleNodeClick = (node: RoadmapNode) => {
-    const incomingEdges = edges.filter(e => e.target === node.id);
-    const prerequisites = incomingEdges.map(e => {
-      const prereqNode = nodes.find(n => n.id === e.source);
-      return {
-        id: e.source,
-        label: prereqNode?.label || '',
-        completed: completedNodes.has(e.source),
-      };
-    });
+    const prerequisites = getPrerequisiteData(node);
     
     // For advanced nodes that aren't completed, check prerequisites
     if (!completedNodes.has(node.id) && isAdvanced(node)) {
@@ -184,11 +188,11 @@ export function RoadmapGraph({
         style={{ width: '100%', height: '100%', minWidth: '1400px' }}
       >
         <defs>
-          <marker id="arrowhead-gray" markerWidth="12" markerHeight="10" refX="11" refY="5" orient="auto" markerUnits="strokeWidth">
-            <path d="M0,0 L0,10 L12,5 Z" fill="#6b7280" />
+          <marker id="arrowhead-gray" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+            <path d="M0,0 L0,10 L10,5 Z" fill="#6b7280" />
           </marker>
-          <marker id="arrowhead-green" markerWidth="12" markerHeight="10" refX="11" refY="5" orient="auto" markerUnits="strokeWidth">
-            <path d="M0,0 L0,10 L12,5 Z" fill="#22c55e" />
+          <marker id="arrowhead-green" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+            <path d="M0,0 L0,10 L10,5 Z" fill="#22c55e" />
           </marker>
         </defs>
         
