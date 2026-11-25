@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm';
 import { jsPDF } from 'jspdf';
 import type { RoadmapNode, TutoringMessage } from '../types/roadmap';
 import { generateTutoringNotes, askTutoringQuestion } from '../api/tutoring';
-import { getTutoringSession, saveTutoringSession, addTutoringMessage, updateTutoringNotes } from '../lib/storage';
+import { getTutoringSession, saveTutoringSession, addTutoringMessage } from '../lib/storage';
 
 interface TutoringModalProps {
   node: RoadmapNode;
@@ -67,43 +67,92 @@ export function TutoringModal({ node, courseTitle, roadmapId, isOpen, onClose }:
       format: 'a4',
     });
     
+    // Reset character spacing to prevent letter spacing issues
+    doc.setCharSpace(0);
+    
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     const margin = 20;
     const contentWidth = pageWidth - 2 * margin;
-    const lineHeight = 6;
-    
-    // Helper to add text with automatic wrapping
-    const addWrappedText = (text: string, x: number, y: number, fontSize: number, fontStyle: 'normal' | 'bold' | 'italic' = 'normal', color: [number, number, number] = [40, 40, 40], maxWidth = contentWidth) => {
-      doc.setFontSize(fontSize);
-      doc.setFont('helvetica', fontStyle);
-      doc.setTextColor(...color);
-      const lines = doc.splitTextToSize(text, maxWidth);
-      doc.text(lines, x, y);
-      return y + lines.length * lineHeight;
-    };
     
     // Helper to strip markdown syntax for PDF
     const stripMarkdown = (text: string) => {
       return text
-        .replace(/\*\*(.+?)\*\*/g, '$1')  // bold
-        .replace(/\*(.+?)\*/g, '$1')      // italic
-        .replace(/`(.+?)`/g, '$1');       // inline code
+        .replace(/\*\*(.+?)\*\*/g, '$1')           // **bold**
+        .replace(/\*(.+?)\*/g, '$1')               // *italic*
+        .replace(/\*\*\*(.+?)\*\*\*/g, '$1')       // ***bold italic***
+        .replace(/\* \*(.+?)\* \*/g, '$1')         // * *spaced italic* *
+        .replace(/\* \* \*(.+?)\* \* \*/g, '$1')   // * * *spaced bold* * *
+        .replace(/`(.+?)`/g, '$1')                 // `code`
+        .replace(/#{1,6}\s+/g, '')                 // # headers
+        .replace(/^\s*[-*]\s+/, '')                // list markers
+        .replace(/^\s*\d+\.\s+/, '');              // numbered list markers
     };
     
-    let yPos = margin + 10;
+    // Helper to clean up weird character spacing from AI output
+    const cleanSpacedText = (text: string) => {
+      return text
+        // Fix spaced acronyms like "S D L C" -> "SDLC"
+        .replace(/\b([A-Z])\s+([A-Z])\s+([A-Z])\s+([A-Z])\b/g, '$1$2$3$4')
+        .replace(/\b([A-Z])\s+([A-Z])\s+([A-Z])\b/g, '$1$2$3')
+        .replace(/\b([A-Z])\s+([A-Z])\b/g, '$1$2')
+        // Fix words with excessive internal spacing (3+ spaces between chars)
+        .replace(/([a-zA-Z])\s{2,}([a-zA-Z])/g, '$1 $2')
+        // Fix spaced punctuation
+        .replace(/\s+([.,;:!?)}\]])/g, '$1')
+        .replace(/([([{])\s+/g, '$1')
+        .trim();
+    };
+    
+    // Helper to check if line is a markdown table row
+    const isTableRow = (line: string) => {
+      const trimmed = line.trim();
+      return trimmed.startsWith('|') && trimmed.includes('|', 1);
+    };
+    
+    // Helper to parse table row into readable text
+    const parseTableRow = (line: string) => {
+      const cells = line.split('|').map(c => stripMarkdown(c.trim())).filter(c => c.length > 0);
+      // Skip separator rows like |---|---|
+      if (cells.every(c => /^[-:]+$/.test(c))) return null;
+      return cells.join(' — ');
+    };
+    
+    // Helper to add wrapped text and return new y position
+    const addText = (text: string, x: number, y: number, fontSize: number, fontStyle: 'normal' | 'bold' | 'italic' = 'normal', color: [number, number, number] = [40, 40, 40], maxWidth = contentWidth) => {
+      const cleaned = cleanSpacedText(text);
+      doc.setFontSize(fontSize);
+      doc.setFont('helvetica', fontStyle);
+      doc.setTextColor(...color);
+      doc.setCharSpace(0); // Ensure no character spacing
+      
+      // Use splitTextToSize for proper word wrapping
+      const lines = doc.splitTextToSize(cleaned, maxWidth);
+      
+      // Get actual line height from the document (in mm)
+      const lineHeight = doc.getLineHeight();
+      
+      lines.forEach((line: string, idx: number) => {
+        doc.text(line, x, y + idx * lineHeight);
+      });
+      return y + lines.length * lineHeight;
+    };
+    
+    let yPos = margin;
     
     // Title
-    yPos = addWrappedText(node.label, margin, yPos, 24, 'bold', [22, 101, 52]);
+    yPos = addText(node.label, margin, yPos, 22, 'bold', [22, 101, 52]);
+    yPos += 4;
     
     // Course title
-    yPos = addWrappedText(courseTitle, margin, yPos + 5, 14, 'normal', [100, 100, 100]);
+    yPos = addText(courseTitle, margin, yPos, 12, 'normal', [100, 100, 100]);
+    yPos += 2;
     
     // Module description
-    yPos = addWrappedText(node.description, margin, yPos + 5, 11, 'normal', [80, 80, 80]);
+    yPos = addText(node.description, margin, yPos, 10, 'normal', [80, 80, 80]);
+    yPos += 6;
     
     // Horizontal line
-    yPos += 5;
     doc.setDrawColor(200, 200, 200);
     doc.setLineWidth(0.5);
     doc.line(margin, yPos, pageWidth - margin, yPos);
@@ -117,7 +166,7 @@ export function TutoringModal({ node, courseTitle, roadmapId, isOpen, onClose }:
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       
-      if (yPos > pageHeight - 25) {
+      if (yPos > pageHeight - 20) {
         doc.addPage();
         yPos = margin;
       }
@@ -131,17 +180,19 @@ export function TutoringModal({ node, courseTitle, roadmapId, isOpen, onClose }:
           inCodeBlock = false;
           // Render code block
           doc.setFillColor(245, 245, 245);
-          const blockHeight = codeBlockContent.length * 5 + 8;
-          if (yPos + blockHeight > pageHeight - 25) {
+          doc.setFont('courier', 'normal');
+          doc.setFontSize(9);
+          doc.setCharSpace(0);
+          const lineHeight = doc.getLineHeight();
+          const blockHeight = codeBlockContent.length * lineHeight + 8;
+          if (yPos + blockHeight > pageHeight - 20) {
             doc.addPage();
             yPos = margin;
           }
           doc.roundedRect(margin, yPos - 2, contentWidth, blockHeight, 2, 2, 'F');
-          doc.setFont('courier', 'normal');
-          doc.setFontSize(9);
           doc.setTextColor(60, 60, 60);
           codeBlockContent.forEach((cl, idx) => {
-            doc.text(cl, margin + 4, yPos + 6 + idx * 5);
+            doc.text(cl, margin + 4, yPos + 6 + idx * lineHeight);
           });
           yPos += blockHeight + 4;
           codeBlockContent = [];
@@ -158,57 +209,72 @@ export function TutoringModal({ node, courseTitle, roadmapId, isOpen, onClose }:
       
       // Headers
       if (line.startsWith('# ')) {
-        yPos = addWrappedText(cleanLine.substring(2), margin, yPos, 18, 'bold', [22, 101, 52]);
+        yPos = addText(cleanLine.substring(2), margin, yPos, 18, 'bold', [22, 101, 52]);
+        yPos += 3;
       } else if (line.startsWith('## ')) {
-        yPos = addWrappedText(cleanLine.substring(3), margin, yPos, 15, 'bold', [40, 40, 40]);
+        yPos = addText(cleanLine.substring(3), margin, yPos, 15, 'bold', [40, 40, 40]);
+        yPos += 2;
       } else if (line.startsWith('### ')) {
-        yPos = addWrappedText(cleanLine.substring(4), margin, yPos, 13, 'bold', [60, 60, 60]);
+        yPos = addText(cleanLine.substring(4), margin, yPos, 13, 'bold', [60, 60, 60]);
+        yPos += 2;
       } else if (line.startsWith('> ')) {
         // Blockquote
         doc.setFillColor(240, 240, 240);
         doc.setDrawColor(22, 101, 52);
         doc.setLineWidth(2);
-        const quoteLines = doc.splitTextToSize(cleanLine.substring(2), contentWidth - 10);
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(10);
+        doc.setCharSpace(0);
+        const quoteText = cleanLine.substring(2);
+        const quoteLines = doc.splitTextToSize(quoteText, contentWidth - 10);
+        const lineHeight = doc.getLineHeight();
         const quoteHeight = quoteLines.length * lineHeight + 6;
-        if (yPos + quoteHeight > pageHeight - 25) {
+        if (yPos + quoteHeight > pageHeight - 20) {
           doc.addPage();
           yPos = margin;
         }
         doc.roundedRect(margin, yPos - 2, contentWidth, quoteHeight, 1, 1, 'FD');
-        doc.setFont('helvetica', 'italic');
-        doc.setFontSize(10);
         doc.setTextColor(100, 100, 100);
-        doc.text(quoteLines, margin + 5, yPos + 3);
+        // Write each line individually to avoid array text issues
+        quoteLines.forEach((ql: string, idx: number) => {
+          doc.text(ql, margin + 5, yPos + 3 + idx * lineHeight);
+        });
         yPos += quoteHeight + 4;
+      } else if (isTableRow(line)) {
+        // Handle markdown tables
+        const parsed = parseTableRow(line);
+        if (parsed) {
+          yPos = addText(parsed, margin, yPos, 10, 'normal', [60, 60, 60]);
+        }
       } else if (line.startsWith('- ') || line.startsWith('* ')) {
         // Bullet points
-        yPos = addWrappedText('• ' + cleanLine.substring(2), margin + 5, yPos, 11, 'normal', [40, 40, 40], contentWidth - 5);
+        yPos = addText('• ' + cleanLine.substring(2), margin + 5, yPos, 11, 'normal', [40, 40, 40], contentWidth - 5);
       } else if (line.match(/^\d+\.\s/)) {
         // Numbered list
-        yPos = addWrappedText(cleanLine, margin + 5, yPos, 11, 'normal', [40, 40, 40], contentWidth - 5);
+        yPos = addText(cleanLine, margin + 5, yPos, 11, 'normal', [40, 40, 40], contentWidth - 5);
       } else if (line.trim() === '') {
         yPos += 4;
       } else {
         // Regular text
-        yPos = addWrappedText(cleanLine, margin, yPos, 11, 'normal', [40, 40, 40]);
+        yPos = addText(cleanLine, margin, yPos, 11, 'normal', [40, 40, 40]);
       }
     }
     
-    // Footer
-    const footerY = pageHeight - 15;
-    doc.setDrawColor(200, 200, 200);
-    doc.setLineWidth(0.3);
-    doc.line(margin, footerY - 3, pageWidth - margin, footerY - 3);
-    
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'italic');
-    doc.setTextColor(130, 130, 130);
-    doc.text('Made with SyllabusGPS', pageWidth / 2, footerY, { align: 'center' });
-    
-    // Page numbers
+    // Footer - add to each page
     const pageCount = doc.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
+      const footerY = pageHeight - 15;
+      doc.setDrawColor(200, 200, 200);
+      doc.setLineWidth(0.3);
+      doc.line(margin, footerY - 3, pageWidth - margin, footerY - 3);
+      
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'italic');
+      doc.setTextColor(130, 130, 130);
+      doc.setCharSpace(0);
+      doc.text('Made with SyllabusGPS', pageWidth / 2, footerY, { align: 'center' });
+      
       doc.setFontSize(8);
       doc.setTextColor(150, 150, 150);
       doc.text(`Page ${i} of ${pageCount}`, pageWidth / 2, pageHeight - 8, { align: 'center' });
@@ -238,12 +304,6 @@ export function TutoringModal({ node, courseTitle, roadmapId, isOpen, onClose }:
       setIsGeneratingNotes(false);
     }
   }, [node, courseTitle, roadmapId, notes]);
-
-  const handleSaveNotes = useCallback(() => {
-    if (notes) {
-      updateTutoringNotes(roadmapId, node.id, notes);
-    }
-  }, [roadmapId, node.id, notes]);
 
   const handleSendMessage = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -372,12 +432,6 @@ export function TutoringModal({ node, courseTitle, roadmapId, isOpen, onClose }:
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                         </svg>
                       </button>
-                      <button
-                        onClick={handleSaveNotes}
-                        className="px-4 py-2 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                      >
-                        Save Notes
-                      </button>
                     </>
                   )}
                 </div>
@@ -437,28 +491,31 @@ export function TutoringModal({ node, courseTitle, roadmapId, isOpen, onClose }:
                   </div>
                 ) : (
                   messages.map((msg, i) => (
-                    <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                      <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                        msg.role === 'user' ? 'bg-blue-100' : 'bg-green-100'
-                      }`}>
-                        <svg className={`w-4 h-4 ${msg.role === 'user' ? 'text-blue-600' : 'text-green-600'}`} fill="currentColor" viewBox="0 0 20 20">
-                          {msg.role === 'user' ? (
-                            <path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" />
-                          ) : (
+                    <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      {msg.role !== 'user' && (
+                        <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-green-100">
+                          <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
                             <path d="M9.428 1.428a.75.75 0 00-1.06 1.06L11.19 8H9.5a.75.75 0 000 1.5h.098v4.758a.75.75 0 001.5 0v-4.5H14a.75.75 0 100-1.5H11.19l1.757-1.757a.75.75 0 10-1.06-1.06l-3.5 3.5a.75.75 0 000 1.06l3.5 3.5a.75.75 0 101.06-1.06l-1.757-1.757h.098a.75.75 0 000-1.5H9.896l1.707-1.707a.75.75 0 00-1.06-1.06L2.25 9.75a.75.75 0 000 1.06l.428.428zm4.714 0a.75.75 0 00-1.06 1.06L12.72 8H10.5a.75.75 0 000 1.5h.098v4.758a.75.75 0 001.5 0v-4.5H16a.75.75 0 100-1.5H12.72l1.757-1.757a.75.75 0 10-1.06-1.06l-3.5 3.5a.75.75 0 000 1.06l3.5 3.5a.75.75 0 101.06-1.06l-1.757-1.757h.098a.75.75 0 000-1.5H10.896l1.707-1.707a.75.75 0 00-1.06-1.06L5.25 9.75a.75.75 0 000 1.06l.428.428z" />
-                          )}
-                        </svg>
-                      </div>
-                      <div className={`flex-1 ${msg.role === 'user' ? 'text-right' : ''}`}>
-                        <div className={`inline-block max-w-[85%] p-4 rounded-2xl ${
+                          </svg>
+                        </div>
+                      )}
+                      <div className={`flex-1 max-w-[85%] ${msg.role === 'user' ? 'text-right' : ''}`}>
+                        <div className={`inline-block max-w-full p-4 rounded-2xl ${
                           msg.role === 'user' ? 'bg-blue-50 text-blue-900 rounded-tr-none' : 'bg-gray-100 text-gray-800 rounded-tl-none'
                         } prose prose-sm max-w-none whitespace-pre-wrap`}>
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>
                             {msg.content}
                           </ReactMarkdown>
                         </div>
-                        <p className="text-xs text-gray-400 mt-1">{new Date(msg.timestamp).toLocaleTimeString()}</p>
+                        <p className={`text-xs text-gray-400 mt-1 ${msg.role === 'user' ? 'text-right' : ''}`}>{new Date(msg.timestamp).toLocaleTimeString()}</p>
                       </div>
+                      {msg.role === 'user' && (
+                        <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-blue-100">
+                          <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" />
+                          </svg>
+                        </div>
+                      )}
                     </div>
                   ))
                 )}

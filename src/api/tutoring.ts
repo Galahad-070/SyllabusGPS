@@ -65,7 +65,7 @@ export async function askTutoringQuestion(
   node: RoadmapNode,
   courseTitle: string,
   notes: string,
-  previousMessages: Array<{ role: 'user' | 'assistant'; content: string }>,
+  previousMessages: Array<{ role: 'user' | 'assistant'; content: string; timestamp?: number }>,
   question: string
 ): Promise<string> {
   const systemPrompt = `You are an expert tutor helping a student understand a specific module.
@@ -82,7 +82,7 @@ Answer the student's question clearly and thoroughly. Use the study notes as con
 
   const messages = [
     { role: 'system', content: systemPrompt },
-    ...previousMessages.slice(-6), // Keep last 6 messages for context
+    ...previousMessages.slice(-6).map(({ role, content }) => ({ role, content })),
     { role: 'user', content: question }
   ];
 
