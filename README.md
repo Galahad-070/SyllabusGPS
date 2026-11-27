@@ -101,3 +101,8 @@ Two API calls are made:
 ## License
 
 MIT
+
+Made for AI Conclave Hackathon@AJCE by
+[Harikrishnan P S](https://github.com/Galahad-070/)
+[Dyuthi S Sarath](https://github.com/dyuthiss)
+[Anusree Babu](https://github.com/AnusreeBabu02)
